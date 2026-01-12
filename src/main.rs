@@ -18,7 +18,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "eframe template",
+        "Class Builder",
         native_options,
         Box::new(|cc| Ok(Box::new(class_builder::MainApp::new(cc)))),
     )
