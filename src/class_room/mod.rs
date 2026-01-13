@@ -1,12 +1,14 @@
 // use std::ops::Not;
 
+use egui::Layout;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use rand_distr::{Distribution, Normal};
 
 pub(crate) struct BuilderData {
-    pub(crate) n_class: usize,
+    pub(crate) n_class: u8,
     pub(crate) students: Vec<Student>,
+    //
     pub(crate) dislike_group: Vec<Vec<StudentId>>,
     pub(crate) like_group: Vec<Vec<StudentId>>,
 
@@ -15,13 +17,13 @@ pub(crate) struct BuilderData {
 }
 
 impl BuilderData {
-    pub(crate) fn empty_class_setup(&self) -> AssignResult {
-        AssignResult::new(self.n_class)
-    }
-
+    // pub(crate) fn empty_class_setup(&self) -> AssignResult {
+    //     AssignResult::new(self.n_class)
+    // }
+    //
     pub(crate) fn new_demo() -> Self {
         let n_class = 12;
-        let n_students = 32 * n_class - 3;
+        let n_students = 32 * (n_class as u32) - 3;
 
         // let mut rng = rand::rng();
         let mut rng = StdRng::seed_from_u64(0);
@@ -66,14 +68,93 @@ impl BuilderData {
             assign_result: None,
         }
     }
+
+    pub(crate) fn initial_assign(&mut self) {
+        let mut rng = StdRng::from_os_rng();
+
+        // data
+        let average_score =
+            self.students.iter().fold(0.0, |prev, st| prev + st.score) / self.students.len() as f32;
+
+        let mut students_male: Vec<_> = self
+            .students
+            .iter()
+            .filter(|st| st.gender == Gender::Male)
+            .collect();
+        let mut students_female: Vec<_> = self
+            .students
+            .iter()
+            .filter(|st| st.gender == Gender::Female)
+            .collect();
+
+        // assign
+        //
+        //
+        students_male.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+        students_female.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+
+        let mut rooms_best = AssignResult::new(self.n_class);
+        let mut idx = 0; // big initial value
+        //
+        let mut class_ids = (0..self.n_class).collect::<Vec<_>>();
+        for i in 0..1_000 {
+            // init.
+            let mut rooms_cand = AssignResult::new(self.n_class);
+
+            students_male
+                .chunks(rooms_cand.number_of_classes())
+                .for_each(|stus| {
+                    class_ids.shuffle(&mut rng);
+                    class_ids
+                        .iter()
+                        .zip(stus.iter())
+                        .for_each(|(&class_id, st)| {
+                            rooms_cand.rooms[class_id as usize]
+                                .students_male
+                                .push(st.id);
+                        });
+                });
+
+            students_female
+                .chunks(rooms_cand.number_of_classes())
+                .for_each(|stus| {
+                    class_ids.shuffle(&mut rng);
+                    class_ids
+                        .iter()
+                        .zip(stus.iter())
+                        .for_each(|(&class_id, st)| {
+                            rooms_cand.rooms[class_id as usize]
+                                .students_female
+                                .push(st.id);
+                        });
+                });
+
+            //
+            //
+            rooms_cand.cal_overall_cost(&self.students, average_score);
+            //
+            //
+
+            if rooms_best.overall_cost.is_none()
+                || rooms_cand.overall_cost.unwrap() < rooms_best.overall_cost.unwrap()
+            {
+                rooms_best = rooms_cand;
+                idx = i;
+            }
+        }
+        println!("{idx}");
+
+        self.assign_result = Some(rooms_best);
+    }
 }
 
-pub(crate) type StudentId = usize;
+pub(crate) type StudentId = u32;
 
 #[derive(Debug)]
 pub(crate) struct Student {
     pub(crate) id: StudentId,
-    pub(crate) alias: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) note: Option<String>,
     pub(crate) gender: Gender,
     pub(crate) score: f32,
 }
@@ -81,14 +162,15 @@ pub(crate) struct Student {
 impl Student {
     pub(crate) fn new(
         id: impl Into<StudentId>,
-        alias: Option<String>,
+        name: Option<String>,
         gender: Gender,
         score: f32,
     ) -> Self {
         Self {
             id: id.into(),
-            alias,
+            name,
             gender,
+            note: None,
             score,
         }
     }
@@ -110,7 +192,7 @@ impl Gender {
 }
 #[derive(Debug, Clone)]
 pub(crate) struct ClassRoom {
-    pub(crate) number: usize,
+    pub(crate) number: u8,
     // name: Option<String>,
     pub(crate) students_male: Vec<StudentId>,
     pub(crate) students_female: Vec<StudentId>,
@@ -121,7 +203,7 @@ pub(crate) struct ClassRoom {
 }
 
 impl ClassRoom {
-    pub(crate) fn new(number: usize) -> Self {
+    pub(crate) fn new(number: u8) -> Self {
         Self {
             number,
             students_male: Vec::new(),
@@ -146,7 +228,7 @@ impl ClassRoom {
             let score_sum = self
                 .students_male
                 .iter()
-                .map(|iid| students.get(*iid).unwrap().score)
+                .map(|iid| students.get(*iid as usize).unwrap().score)
                 .fold(0.0, |sum, score| sum + score);
             score_sum / self.students_male.len() as f32
         };
@@ -154,7 +236,7 @@ impl ClassRoom {
             let score_sum = self
                 .students_female
                 .iter()
-                .map(|iid| students.get(*iid).unwrap().score)
+                .map(|iid| students.get(*iid as usize).unwrap().score)
                 .fold(0.0, |sum, score| sum + score);
             score_sum / self.students_female.len() as f32
         };
@@ -172,7 +254,7 @@ impl ClassRoom {
             .students_male
             .iter()
             .chain(self.students_female.iter())
-            .map(|iid| (students.get(*iid).unwrap().score - average_score).powi(2))
+            .map(|iid| (students.get(*iid as usize).unwrap().score - average_score).powi(2))
             .fold(0.0, |sum, score| sum + score);
         Some(sum / (self.number_of_students() as f32))
     }
@@ -197,15 +279,15 @@ impl ClassRoom {
             .enumerate()
             .for_each(|(i, sid)| {
                 let col = i % 5;
-                let st = &students[*sid];
-                let alias = st.alias.as_ref().unwrap_or(&empty);
+                let st = &students[*sid as usize];
+                let name = st.name.as_ref().unwrap_or(&empty);
                 if col == 0 {
                     print!(
                         "  {:3}({:5.1} {}){} ",
                         st.id,
                         st.score,
                         st.gender.as_str(),
-                        alias
+                        name
                     );
                 } else {
                     print!(
@@ -213,7 +295,7 @@ impl ClassRoom {
                         st.id,
                         st.score,
                         st.gender.as_str(),
-                        alias
+                        name
                     );
                 }
                 if col == 4 {
@@ -221,6 +303,53 @@ impl ClassRoom {
                 }
             });
         println!();
+    }
+
+    pub(crate) fn draw_layout(&self, ui: &mut egui::Ui, students: &[Student]) {
+        let empty = String::from("");
+        const N_COL: usize = 5;
+
+        ui.push_id(self.number, |ui| {
+            ui.label(format!("Class #{}", self.number));
+            ui.group(|ui| {
+                egui::Grid::new("class#{} stats")
+                    .num_columns(N_COL + 2)
+                    .striped(true)
+                    .show(ui, |ui| {
+                        self.students_male
+                            .iter()
+                            .chain(self.students_female.iter())
+                            .enumerate()
+                            .for_each(|(i, iid)| {
+                                let st = &students[*iid as usize];
+                                let name = st.name.as_ref().unwrap_or(&empty);
+
+                                if i % N_COL == 0 {
+                                    ui.allocate_space(egui::vec2(0.0, 0.0));
+                                    // ui.label("");
+                                }
+
+                                ui.with_layout(Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.label(format!(
+                                        "{:4}({:5.1} {}){}",
+                                        st.id,
+                                        st.score,
+                                        st.gender.as_str(),
+                                        name
+                                    ));
+                                });
+
+                                // ui.allocate_space(egui::vec2(1.0, 0.0)); // 남은 가로 공간 다 먹음
+                                //
+                                if i % N_COL == N_COL - 1 {
+                                    ui.allocate_space(egui::vec2(0.0, 0.0));
+                                    // ui.label("");
+                                    ui.end_row();
+                                }
+                            });
+                    });
+            });
+        });
     }
 }
 
@@ -233,7 +362,7 @@ pub(crate) struct AssignResult {
 }
 
 impl AssignResult {
-    pub(crate) fn new(n_class: usize) -> Self {
+    pub(crate) fn new(n_class: u8) -> Self {
         let rooms: Vec<_> = (0..n_class).map(ClassRoom::new).collect();
         Self {
             rooms,
@@ -265,114 +394,61 @@ impl AssignResult {
 
         self.overall_cost = Some(score_average + score_variance);
     }
-}
 
-fn assign_class(
-    class_rooms: AssignResult,
-    students: &[Student],
-    dislike: &[Vec<StudentId>],
-) -> AssignResult {
-    let mut rng = StdRng::from_os_rng();
-
-    // data
-    let average_score =
-        students.iter().fold(0.0, |prev, st| prev + st.score) / students.len() as f32;
-
-    let mut students_male: Vec<_> = students
-        .iter()
-        .filter(|st| st.gender == Gender::Male)
-        .collect();
-    let mut students_female: Vec<_> = students
-        .iter()
-        .filter(|st| st.gender == Gender::Female)
-        .collect();
-
-    // assign
-    //
-    //
-    students_male.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-    students_female.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
-
-    let mut rooms_final = class_rooms.clone();
-    let mut idx = 0; // big initial value
-    //
-    let mut class_ids = (0..class_rooms.number_of_classes()).collect::<Vec<_>>();
-    for i in 0..1_000 {
-        // init.
-        let mut rooms_cand = class_rooms.clone();
-
-        students_male
-            .chunks(rooms_cand.number_of_classes())
-            .for_each(|stus| {
-                class_ids.shuffle(&mut rng);
-                class_ids
-                    .iter()
-                    .zip(stus.iter())
-                    .for_each(|(&class_id, st)| {
-                        rooms_cand.rooms[class_id].students_male.push(st.id);
-                    });
+    pub(crate) fn draw_stats(&self, ui: &mut egui::Ui) {
+        egui::Grid::new("class stats")
+            .num_columns(5)
+            .striped(true)
+            .show(ui, |ui| {
+                ui.label("# Class");
+                ui.label("# M");
+                ui.label("# F");
+                ui.label("#Students");
+                ui.label("Mean Score");
+                ui.end_row();
+                for class in &self.rooms {
+                    ui.label(format!("No.{}", class.number));
+                    ui.label(format!("{}", class.students_male.len()));
+                    ui.label(format!("{}", class.students_female.len()));
+                    ui.label(format!("{}", class.number_of_students()));
+                    ui.label(format!("{:.1}", class.score_average.unwrap_or(0.0)));
+                    ui.end_row();
+                }
             });
-
-        students_female
-            .chunks(rooms_cand.number_of_classes())
-            .for_each(|stus| {
-                class_ids.shuffle(&mut rng);
-                class_ids
-                    .iter()
-                    .zip(stus.iter())
-                    .for_each(|(&class_id, st)| {
-                        rooms_cand.rooms[class_id].students_female.push(st.id);
-                    });
-            });
-
-        //
-        //
-        rooms_cand.cal_overall_cost(students, average_score);
-        //
-        //
-
-        if rooms_final.overall_cost.is_none()
-            || rooms_cand.overall_cost.unwrap() < rooms_final.overall_cost.unwrap()
-        {
-            rooms_final = rooms_cand;
-            idx = i;
-        }
     }
-    println!("{idx}");
-
-    rooms_final
 }
 
 fn test() {
     let mut builder_data = BuilderData::new_demo();
 
-    let class_setup = builder_data.empty_class_setup();
-
+    // let class_setup = builder_data.empty_class_setup();
     //
-    let assign_result = assign_class(
-        class_setup,
-        &builder_data.students,
-        &builder_data.dislike_group,
-    );
+    // //
+    // let assign_result = assign_class(
+    //     class_setup,
+    //     &builder_data.students,
+    //     &builder_data.dislike_group,
+    // );
 
-    for class in assign_result.rooms.iter() {
-        let score = class.score_average.unwrap();
-        let stdev = class.score_variance.unwrap().sqrt();
-        println!(
-            "class {:02} : #students m({:2})+f({:2})= {:2} score {:.2} score_stdev {:.2}",
-            class.number,
-            class.students_male.len(),
-            class.students_female.len(),
-            class.number_of_students(),
-            score,
-            stdev,
-        );
+    builder_data.initial_assign();
 
-        if false {
-            class.print_layout(&builder_data.students);
+    if let Some(assign) = &builder_data.assign_result {
+        for class in assign.rooms.iter() {
+            let score = class.score_average.unwrap();
+            let stdev = class.score_variance.unwrap().sqrt();
+            println!(
+                "class {:02} : #students m({:2})+f({:2})= {:2} score {:.2} score_stdev {:.2}",
+                class.number,
+                class.students_male.len(),
+                class.students_female.len(),
+                class.number_of_students(),
+                score,
+                stdev,
+            );
+
+            if false {
+                class.print_layout(&builder_data.students);
+            }
         }
     }
-
-    //
-    builder_data.assign_result = Some(assign_result);
 }

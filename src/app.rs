@@ -1,4 +1,8 @@
-use crate::class_room::BuilderData;
+use egui::Layout;
+use egui_extras::{Column, TableBuilder};
+use egui_extras::{Size, StripBuilder};
+
+use crate::class_room::{BuilderData, Student};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -49,126 +53,53 @@ impl MainApp {
     }
 
     fn ui_data_input(&mut self, ui: &mut egui::Ui) {
-        use egui_extras::{Column, TableBuilder};
-
         // The central panel the region left after adding TopPanel's and SidePanel's
         ui.heading("Data Input");
+        ui.add_space(10.0);
 
-        ui.strong("Class Info:");
-        ui.add(
-            egui::Slider::new(&mut self.builder_data.n_class, 2..=100).text("number of classes"),
-        );
+        StripBuilder::new(ui)
+            .size(Size::relative(0.5).at_least(100.0))
+            .size(Size::exact(1.0)) // [핵심] 구분선용 1px 셀
+            .size(Size::relative(0.25).at_least(60.0))
+            .size(Size::exact(1.0)) // [핵심] 구분선용 1px 셀
+            .size(Size::remainder())
+            .horizontal(|mut strip| {
+                strip.cell(|ui| {
+                    ui.strong("Students");
+                    ui.add_space(10.0);
+                    ui_student_table(ui, &mut self.builder_data.students);
+                });
+                // separator
+                strip.cell(|ui| {
+                    // 현재 셀(1px 너비)의 전체 영역을 가져옴
+                    let rect = ui.available_rect_before_wrap();
 
-        ui.separator();
-
-        let response = ui.button("import student list (csv)");
-        response.on_hover_ui(|ui| {
-            ui.label("Not Implented Yet!");
-        });
-
-        // let text_height = egui::TextStyle::Body
-        //     .resolve(ui.style())
-        //     .size
-        //     .max(ui.spacing().interact_size.y);
-
-        let available_height = ui.available_height();
-        let mut table = TableBuilder::new(ui)
-            .striped(true)
-            .resizable(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Column::auto())
-            .column(
-                Column::auto(), // Column::remainder()
-                                //     .at_least(40.0)
-                                //     .clip(true)
-                                //     .resizable(true),
-            )
-            .column(Column::auto())
-            .column(Column::remainder())
-            // .column(Column::remainder())
-            .min_scrolled_height(0.0)
-            .max_scroll_height(available_height);
-
-        table
-            .header(20.0, |mut header| {
-                header.col(|ui| {
-                    egui::Sides::new().show(
-                        ui,
-                        |ui| {
-                            ui.strong("Id");
-                        },
-                        |ui| {
-                            self.reversed ^=
-                                ui.button(if self.reversed { "⬆" } else { "⬇" }).clicked();
-                        },
+                    // 테마의 'noninteractive' 색상(회색조)으로 사각형을 채움
+                    ui.painter().rect_filled(
+                        rect,
+                        0.0,
+                        ui.visuals().widgets.noninteractive.bg_stroke.color,
                     );
                 });
-                header.col(|ui| {
-                    ui.strong("Alias");
+                strip.cell(|ui| {
+                    ui.strong("Dislike Group");
+                    ui.add_space(10.0);
                 });
-                header.col(|ui| {
-                    ui.strong("Gender");
+                // separator
+                strip.cell(|ui| {
+                    // 현재 셀(1px 너비)의 전체 영역을 가져옴
+                    let rect = ui.available_rect_before_wrap();
+
+                    // 테마의 'noninteractive' 색상(회색조)으로 사각형을 채움
+                    ui.painter().rect_filled(
+                        rect,
+                        0.0,
+                        ui.visuals().widgets.noninteractive.bg_stroke.color,
+                    );
                 });
-                header.col(|ui| {
-                    ui.strong("Score");
-                });
-                // header.col(|ui| {
-                //     ui.strong("Content");
-                // });
-            })
-            .body(|mut body| {
-                self.builder_data.students.iter_mut().for_each(|st| {
-                    // ui.horizontal(|ui| {
-                    //     ui.label(format!("{:?}", st));
-                    // });
-                    // let row_index = if self.reversed {
-                    //     NUM_MANUAL_ROWS - 1 - row_index
-                    // } else {
-                    //     row_index
-                    // };
-
-                    let is_thick = false; //thick_row(row_index);
-                    let row_height = if is_thick { 30.0 } else { 18.0 };
-                    body.row(row_height, |mut row| {
-                        // row.set_selected(self.selection.contains(&row_index));
-                        // row.set_overline(self.overline && row_index % 7 == 3);
-
-                        row.col(|ui| {
-                            ui.label(format!("{:?}", st.id));
-                        });
-                        row.col(|ui| {
-                            // ui.label(long_text(row_index));
-                            let mut checked = st.alias.is_some();
-                            if ui.checkbox(&mut checked, "").changed() {
-                                if checked {
-                                    st.alias = Some(String::new());
-                                } else {
-                                    st.alias = None;
-                                }
-                            }
-                            if let Some(mut alias) = st.alias.as_mut() {
-                                ui.text_edit_singleline(alias);
-                            }
-                        });
-                        row.col(|ui| {
-                            // expanding_content(ui);
-                            ui.label(format!("{}", st.gender.as_str()));
-                        });
-                        row.col(|ui| {
-                            // ui.checkbox(&mut self.checked, "Click me");
-                            ui.label(format!("{:.1}", st.score));
-                        });
-                        // row.col(|ui| {
-                        //     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-                        //     if is_thick {
-                        //         ui.heading("Extra thick row");
-                        //     } else {
-                        //         ui.label("Normal row");
-                        //     }
-                        // });
-
-                        // self.toggle_row_selection(row_index, &row.response());
-                    });
+                strip.cell(|ui| {
+                    ui.strong("Like Group");
+                    ui.add_space(10.0);
                 });
             });
 
@@ -192,7 +123,144 @@ impl MainApp {
 
     fn ui_assign(&mut self, ui: &mut egui::Ui) {
         //
+        ui.strong("Class Setup:");
+        let need_init = ui
+            .horizontal(|ui| {
+                ui.add(
+                    egui::Slider::new(&mut self.builder_data.n_class, 2..=30)
+                        .text("number of classes"),
+                )
+                .changed()
+                    || ui.button("Assign (again)").clicked()
+            })
+            .inner;
+
+        if need_init || self.builder_data.assign_result.is_none() {
+            self.builder_data.initial_assign();
+        }
+
+        ui.separator();
+
+        if let Some(assign) = &self.builder_data.assign_result {
+            ui.strong("Statistics:");
+            ui.add_space(10.0);
+
+            assign.draw_stats(ui);
+
+            ui.separator();
+
+            ui.strong("Class & Students:");
+            ui.add_space(10.0);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                // egui::Grid::new("class layout")
+                //     .num_columns(2)
+                //     .striped(true)
+                //     .show(ui, |ui| {
+                for (i, class) in assign.rooms.iter().enumerate() {
+                    class.draw_layout(ui, &self.builder_data.students);
+                    // if i % 2 == 1 {
+                    //
+                    //     ui.end_row();
+                    // }
+                }
+                //         });
+            });
+        }
     }
+}
+
+fn ui_student_table(ui: &mut egui::Ui, students: &mut [Student]) {
+    ui.with_layout(Layout::right_to_left(egui::Align::Min), |ui| {
+        let response = ui.button("import student list (csv)");
+        response.on_hover_ui(|ui| {
+            ui.label("Not Implented Yet!");
+        });
+    });
+
+    let available_height = ui.available_height();
+    let table = TableBuilder::new(ui)
+        .striped(true)
+        .resizable(true)
+        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+        .column(Column::auto())
+        .column(Column::auto().at_least(100.0))
+        .column(
+            Column::auto(), // Column::remainder()
+                            //     .at_least(40.0)
+                            //     .clip(true)
+                            //     .resizable(true),
+        )
+        .column(Column::auto())
+        .column(Column::remainder())
+        // .column(Column::remainder())
+        .min_scrolled_height(0.0)
+        .max_scroll_height(available_height);
+
+    table
+        .header(20.0, |mut header| {
+            header.col(|ui| {
+                ui.strong("Id");
+            });
+            header.col(|ui| {
+                ui.strong("Name");
+            });
+            header.col(|ui| {
+                ui.strong("Gender");
+            });
+            header.col(|ui| {
+                ui.strong("Score");
+            });
+            header.col(|ui| {
+                ui.strong("Note");
+            });
+        })
+        .body(|mut body| {
+            for student in students.iter_mut() {
+                let is_thick = false; //thick_row(row_index);
+                let row_height = if is_thick { 30.0 } else { 18.0 };
+                body.row(row_height, |mut row| {
+                    row.col(|ui| {
+                        ui.label(format!("{:?}", student.id));
+                    });
+                    row.col(|ui| {
+                        // ui.label(long_text(row_index));
+                        let mut checked = student.name.is_some();
+                        if ui.checkbox(&mut checked, "").changed() {
+                            if checked {
+                                student.name = Some(String::new());
+                            } else {
+                                student.name = None;
+                            }
+                        }
+                        if let Some(name) = student.name.as_mut() {
+                            ui.text_edit_singleline(name);
+                        }
+                    });
+                    row.col(|ui| {
+                        // expanding_content(ui);
+                        ui.label(student.gender.as_str());
+                    });
+                    row.col(|ui| {
+                        // ui.checkbox(&mut self.checked, "Click me");
+                        ui.label(format!("{:.1}", student.score));
+                    });
+                    row.col(|ui| {
+                        // ui.label(long_text(row_index));
+                        let mut checked = student.note.is_some();
+                        if ui.checkbox(&mut checked, "").changed() {
+                            if checked {
+                                student.note = Some(String::new());
+                            } else {
+                                student.note = None;
+                            }
+                        }
+                        if let Some(note) = student.note.as_mut() {
+                            ui.text_edit_singleline(note);
+                        }
+                    });
+                });
+            }
+        });
 }
 
 impl eframe::App for MainApp {
@@ -205,6 +273,7 @@ impl eframe::App for MainApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
+        log::info!("update()");
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
