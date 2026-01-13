@@ -22,7 +22,7 @@ impl Default for MainApp {
     fn default() -> Self {
         Self {
             // Example stuff:
-            label: "Class Builder".to_owned(),
+            label: "Class Assigner".to_owned(),
             value: 2.7,
             app_mode: AppMode::default(),
 

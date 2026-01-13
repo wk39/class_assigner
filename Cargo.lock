@@ -606,7 +606,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "class_builder"
+name = "class_assigner"
 version = "0.1.0"
 dependencies = [
  "ahash",

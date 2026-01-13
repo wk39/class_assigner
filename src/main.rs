@@ -18,9 +18,9 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native(
-        "Class Builder",
+        "Class Assigner",
         native_options,
-        Box::new(|cc| Ok(Box::new(class_builder::MainApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(class_assigner::MainApp::new(cc)))),
     )
 }
 
@@ -50,7 +50,7 @@ fn main() {
             .start(
                 canvas,
                 web_options,
-                Box::new(|cc| Ok(Box::new(class_builder::MainApp::new(cc)))),
+                Box::new(|cc| Ok(Box::new(class_assigner::MainApp::new(cc)))),
             )
             .await;
 

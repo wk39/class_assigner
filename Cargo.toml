@@ -1,5 +1,5 @@
 [package]
-name = "class_builder"
+name = "class_assigner"
 version = "0.1.0"
 authors = ["w..k <wdpk39@gmail.com>"]
 edition = "2024"
