@@ -2,7 +2,7 @@ use egui::Layout;
 use egui_extras::{Column, TableBuilder};
 use egui_extras::{Size, StripBuilder};
 
-use crate::class_room::{BuilderData, Student};
+use crate::class_room::{BuilderData, Student, StudentId};
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -71,10 +71,7 @@ impl MainApp {
                 });
                 // separator
                 strip.cell(|ui| {
-                    // 현재 셀(1px 너비)의 전체 영역을 가져옴
                     let rect = ui.available_rect_before_wrap();
-
-                    // 테마의 'noninteractive' 색상(회색조)으로 사각형을 채움
                     ui.painter().rect_filled(
                         rect,
                         0.0,
@@ -84,13 +81,11 @@ impl MainApp {
                 strip.cell(|ui| {
                     ui.strong("Dislike Group");
                     ui.add_space(10.0);
+                    ui_dislike_group(ui, &mut self.builder_data.dislike_group);
                 });
                 // separator
                 strip.cell(|ui| {
-                    // 현재 셀(1px 너비)의 전체 영역을 가져옴
                     let rect = ui.available_rect_before_wrap();
-
-                    // 테마의 'noninteractive' 색상(회색조)으로 사각형을 채움
                     ui.painter().rect_filled(
                         rect,
                         0.0,
@@ -100,6 +95,7 @@ impl MainApp {
                 strip.cell(|ui| {
                     ui.strong("Like Group");
                     ui.add_space(10.0);
+                    ui_like_group(ui, &mut self.builder_data.like_group);
                 });
             });
 
@@ -124,16 +120,19 @@ impl MainApp {
     fn ui_assign(&mut self, ui: &mut egui::Ui) {
         //
         ui.strong("Class Setup:");
-        let need_init = ui
-            .horizontal(|ui| {
-                ui.add(
+        let mut need_init = false;
+        ui.horizontal(|ui| {
+            need_init |= ui
+                .add(
                     egui::Slider::new(&mut self.builder_data.n_class, 2..=30)
                         .text("number of classes"),
                 )
-                .changed()
-                    || ui.button("Assign (again)").clicked()
-            })
-            .inner;
+                .changed();
+            ui.add_space(50.0);
+            need_init |= ui
+                .add_sized([100.0, 30.0], egui::Button::new("Simple Assign"))
+                .clicked();
+        });
 
         if need_init || self.builder_data.assign_result.is_none() {
             self.builder_data.initial_assign();
@@ -145,27 +144,41 @@ impl MainApp {
             ui.strong("Statistics:");
             ui.add_space(10.0);
 
-            assign.draw_stats(ui);
+            assign.ui_statistics(ui);
 
+            ui.add_space(10.0);
             ui.separator();
 
             ui.strong("Class & Students:");
             ui.add_space(10.0);
             egui::ScrollArea::vertical().show(ui, |ui| {
-                // egui::Grid::new("class layout")
-                //     .num_columns(2)
-                //     .striped(true)
-                //     .show(ui, |ui| {
-                for (i, class) in assign.rooms.iter().enumerate() {
-                    class.draw_layout(ui, &self.builder_data.students);
-                    // if i % 2 == 1 {
-                    //
-                    //     ui.end_row();
-                    // }
+                for class in &assign.rooms {
+                    class.ui_layout(ui, &self.builder_data.students);
                 }
-                //         });
             });
         }
+    }
+}
+
+fn ui_like_group(ui: &mut egui::Ui, like_group: &mut [Vec<StudentId>]) {
+    for (igroup, group) in like_group.iter_mut().enumerate() {
+        ui.label(format!("Like Group {igroup}"));
+        ui.group(|ui| {
+            for iid in group {
+                ui.label(format!("Student {iid}"));
+            }
+        });
+    }
+}
+
+fn ui_dislike_group(ui: &mut egui::Ui, dislike_group: &mut [Vec<StudentId>]) {
+    for (igroup, group) in dislike_group.iter_mut().enumerate() {
+        ui.label(format!("Dislike Group {igroup}"));
+        ui.group(|ui| {
+            for iid in group {
+                ui.label(format!("Student {iid}"));
+            }
+        });
     }
 }
 
@@ -273,7 +286,8 @@ impl eframe::App for MainApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
-        log::info!("update()");
+
+        // log::info!("update()");
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
