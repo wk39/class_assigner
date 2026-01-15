@@ -6,6 +6,7 @@ use rand::seq::SliceRandom as _;
 use rand::{Rng as _, SeedableRng as _, rngs::StdRng};
 use rand_distr::{Distribution as _, Normal};
 
+#[derive(Clone)]
 pub(crate) struct BuilderData {
     pub(crate) n_class: u8,
     pub(crate) students: Vec<Student>,
@@ -13,6 +14,7 @@ pub(crate) struct BuilderData {
     pub(crate) dislike_group: Vec<Vec<StudentId>>,
     pub(crate) like_group: Vec<Vec<StudentId>>,
 
+    pub(crate) n_iteration: usize,
     //
     pub(crate) assign_result: Option<AssignResult>,
 }
@@ -66,11 +68,13 @@ impl BuilderData {
             dislike_group,
             like_group,
 
+            n_iteration: 10_000,
+
             assign_result: None,
         }
     }
 
-    pub(crate) fn initial_assign(&mut self) {
+    pub(crate) fn init(&mut self) {
         let mut rng = StdRng::from_os_rng();
 
         // data
@@ -159,7 +163,7 @@ impl BuilderData {
 
 pub(crate) type StudentId = u32;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Student {
     pub(crate) id: StudentId,
     pub(crate) name: Option<String>,
@@ -199,7 +203,7 @@ impl Gender {
         }
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ClassRoom {
     pub(crate) number: u8,
     // name: Option<String>,
@@ -286,7 +290,12 @@ impl ClassRoom {
         self.cost = self
             .score_average
             .zip(self.score_variance)
-            .map(|(mean, var)| (mean - grade_average_score).powi(2) + var);
+            .zip(self.like_count)
+            .zip(self.dislike_count)
+            .map(|(((mean, var), n_like), n_dislike)| {
+                (mean - grade_average_score).powi(2) + var - (n_like as f32 * 1000.0)
+                    + (n_dislike as f32) * 1000.0
+            });
     }
 
     pub(crate) fn print_layout(&self, students: &[Student]) {
@@ -406,7 +415,7 @@ impl ClassRoom {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AssignResult {
     pub(crate) rooms: Vec<ClassRoom>,
     // pub(crate) students: Vec<Student>,
@@ -456,7 +465,7 @@ impl AssignResult {
                 ui.label("# Class");
                 ui.label("# Stu.");
                 ui.label("(M/F)");
-                ui.label("Average\nScore");
+                ui.label("Mean\nScore");
                 ui.label("Stdev.");
                 ui.label("# Dis.");
                 ui.label("# Like");
@@ -479,10 +488,10 @@ impl AssignResult {
                 }
             });
         ui.add_space(10.0);
-        ui.label(format!(
-            "Overall cost: {:.1}",
-            self.overall_cost.unwrap_or(0.0)
-        ));
+        ui.horizontal(|ui| {
+            ui.label("Overall cost:");
+            ui.strong(format!("{:.1}", self.overall_cost.unwrap_or(0.0)));
+        });
     }
 }
 
@@ -499,7 +508,7 @@ fn test() {
     //     &builder_data.dislike_group,
     // );
 
-    builder_data.initial_assign();
+    builder_data.init();
 
     if let Some(assign) = &builder_data.assign_result {
         for class in &assign.rooms {
