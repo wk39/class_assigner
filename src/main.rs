@@ -46,6 +46,9 @@ fn main() {
             .dyn_into::<web_sys::HtmlCanvasElement>()
             .expect("the_canvas_id was not a HtmlCanvasElement");
 
+        // prevent browser refresh
+        prevent_close();
+
         let start_result = eframe::WebRunner::new()
             .start(
                 canvas,
@@ -69,4 +72,26 @@ fn main() {
             }
         }
     });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn prevent_close() {
+    use eframe::wasm_bindgen::JsCast as _;
+    use eframe::wasm_bindgen::prelude::*;
+    {
+        let window = web_sys::window().unwrap();
+
+        // "beforeunload" 이벤트 핸들러 설정
+        let closure = Closure::wrap(Box::new(move |event: web_sys::BeforeUnloadEvent| {
+            // 이 설정을 하면 브라우저가 표준 경고창을 띄웁니다.
+            event.set_return_value("작업 중인 내용이 있습니다.");
+        }) as Box<dyn FnMut(_)>);
+
+        window
+            .add_event_listener_with_callback("beforeunload", closure.as_ref().unchecked_ref())
+            .unwrap();
+
+        // 메모리 누수 방지를 위해 핸들러를 영구 유지 (앱 종료 전까지)
+        closure.forget();
+    }
 }
